@@ -2,9 +2,18 @@ const express = require('express');
 const createError = require('http-errors');
 const cors = require('cors')
 const helmet = require('helmet');
+const session = require('express-session');
 const morgan = require('morgan');
+const LocalStrategy = require('passport-local');
+const MongoStore = require('connect-mongo');
+
+const usuariosRouter = require('./routes/usuarios');
 const citasRouter = require('./routes/citas')
 const pacientesRouter = require('./routes/pacientes');
+const passport = require('passport');
+const Usuario = require('./models/usuario');
+const EXPIRACION_COOKIE = 86400000; // milisegundos en un dia
+
 
 const app = express();
 
@@ -14,16 +23,34 @@ app.use(morgan(process.env.LOG_LEVEL)) // logger de actividad de API
 app.use(cors());                       // permitir peticiones de otros dominios
 app.use(express.json())                // recibir peticiones con payload JSON
 
-// definir rutas
-app.use('/', async (req, res, next) => {
-  const Gatito = require('./models/gatito');
-  const pelusa = await Gatito.create({nombre: 'Pelusa', bigotes: 10});
+//configurar passport
+passport.use(new LocalStrategy({}, Usuario.verify));
+passport.serializeUser(Usuario.serializeUser);
+passport.deserializeUser(Usuario.deserializeUser);
 
-  res.json({
-    saludo: pelusa.saluda(),
-    encontrado: await Gatito.encuentraPorNombre('pelusa')
-  })
-});
+// configurar sesiones en express
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  name: process.env.SESSION_COOKIE_NAME,
+  resave: false,
+  saveUninitialized: true,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_CONN_STR,
+    dbName: process.env.DB_NAME,
+    collectionName: 'sesiones'
+  }),
+  cookie: {
+      maxAge: EXPIRACION_COOKIE
+  }
+}));
+
+
+// autenticacion
+app.use(passport.initialize()); // busca en la sesion el usuario serializado
+app.use(passport.session());    // deserializa el usuario y lo guarda en req
+
+// definir rutas
+app.use('/usuarios', usuariosRouter);
 app.use('/pacientes', pacientesRouter);
 app.use('/citas', citasRouter);
 
