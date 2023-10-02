@@ -1,0 +1,39 @@
+#!/usr/bin/env node
+
+require('dotenv').config()
+const app = require('../index');
+const http = require('http');
+const mongoose = require('mongoose');
+
+//conectar a DB
+try {
+
+    const DB_URI = process.env.MONGODB
+    mongoose.set('strictQuery', false)
+    
+    mongoose.connect(DB_URI, {
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+    })
+
+    console.log('**** MONGO DB: CONEXION CORRECTA ****')
+} catch (error) {
+    console.log(error);
+    throw new Error('Error al iniciar la BD.')
+}
+
+// configurar el puerto en express
+const puerto = process.env.PUERTO
+app.set('port', puerto);
+
+// crear servidor HTTP
+var servidor = http.createServer(app);
+
+//empezar a escuchar por el puerto configurado
+servidor.listen(puerto);
+
+//reportar errores
+servidor.on('error', error => { throw error });
+
+//notificar inicio del servidor()
+servidor.on('listening', () => { console.log(`Servidor escuchando en puerto ${puerto}`) });
